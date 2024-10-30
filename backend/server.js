@@ -2,7 +2,7 @@ import express from 'express';
 import sqlite3 from 'sqlite3';
 import { open } from 'sqlite';
 import dotenv from 'dotenv';
-import cors from 'cors';  // Add this line
+import cors from 'cors';
 
 dotenv.config();
 
@@ -10,7 +10,7 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Middleware
-app.use(cors());  // Add this line to enable CORS
+app.use(cors());
 app.use(express.json());
 
 // SQLite Connection
@@ -31,20 +31,20 @@ let db;
       content TEXT
     )
   `);
-
-  // Insert sample data if the table is empty
-  const projectsCount = await db.get('SELECT COUNT(*) as count FROM projects');
-  if (projectsCount.count === 0) {
-    await db.exec(`
-      INSERT INTO projects (title, description, image, content) VALUES
-      ('Project One', 'Description of Project One', 'https://via.placeholder.com/150', 'Detailed content for Project One'),
-      ('Project Two', 'Description of Project Two', 'https://via.placeholder.com/150', 'Detailed content for Project Two'),
-      ('Project Three', 'Description of Project Three', 'https://via.placeholder.com/150', 'Detailed content for Project Three')
-    `);
-  }
 })();
 
 // Routes
+
+// Get latest 5 projects
+app.get('/api/projects/latest', async (req, res) => {
+  try {
+    const projects = await db.all('SELECT * FROM projects ORDER BY id DESC LIMIT 5');
+    res.json(projects);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 app.get('/api/projects', async (req, res) => {
   try {
     const projects = await db.all('SELECT * FROM projects');
@@ -59,6 +59,49 @@ app.get('/api/projects/:id', async (req, res) => {
     const project = await db.get('SELECT * FROM projects WHERE id = ?', [req.params.id]);
     if (!project) return res.status(404).json({ message: 'Project not found' });
     res.json(project);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Add new project
+app.post('/api/projects', async (req, res) => {
+  const { title, description, image, content } = req.body;
+  try {
+    const result = await db.run(`
+      INSERT INTO projects (title, description, image, content)
+      VALUES (?, ?, ?, ?)
+    `, [title, description, image, content]);
+    res.status(201).json({ id: result.lastID, title, description, image, content });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Update project
+app.put('/api/projects/:id', async (req, res) => {
+  const { title, description, image, content } = req.body;
+  try {
+    const result = await db.run(`
+      UPDATE projects
+      SET title = ?, description = ?, image = ?, content = ?
+      WHERE id = ?
+    `, [title, description, image, content, req.params.id]);
+    if (result.changes === 0) return res.status(404).json({ message: 'Project not found' });
+    res.json({ id: req.params.id, title, description, image, content });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Delete project
+app.delete('/api/projects/:id', async (req, res) => {
+  try {
+    const result = await db.run(`
+      DELETE FROM projects WHERE id = ?
+    `, [req.params.id]);
+    if (result.changes === 0) return res.status(404).json({ message: 'Project not found' });
+    res.json({ message: 'Project deleted' });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
