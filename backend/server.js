@@ -7,7 +7,7 @@ import cors from 'cors';
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 
 // Middleware
 app.use(cors());
@@ -17,8 +17,13 @@ app.use(express.json());
 let db;
 (async () => {
   db = await open({
-    filename: './database.sqlite',
+    filename: './new_database.sqlite',  // New database file
     driver: sqlite3.Database
+  });
+
+  process.on('SIGINT', async () => {
+    if (db) await db.close();
+    process.exit(0);
   });
 
   // Create the projects table if it doesn't exist
@@ -31,6 +36,7 @@ let db;
       content TEXT
     )
   `);
+  
 })();
 
 // Routes
